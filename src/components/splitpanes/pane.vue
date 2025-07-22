@@ -1,51 +1,59 @@
 <template>
-<div
-  ref="paneEl"
-  class="splitpanes__pane"
-  @click="onPaneClick($event, _.uid)"
-  :style="styles">
-  <slot/>
-</div>
+  <div
+    ref="paneEl"
+    class="splitpanes__pane"
+    @click="onPaneClick($event, uid)"
+    :style="styles">
+    <slot/>
+  </div>
 </template>
 
-<script setup>
-import { inject, ref, computed, onMounted, onBeforeUnmount, watch, getCurrentInstance } from 'vue'
+<script setup lang="ts">
+import {inject, computed, onMounted, onBeforeUnmount, watch, getCurrentInstance, useTemplateRef} from 'vue'
+import {injectKey} from "./splitPaneTypes.ts";
 
-const props = defineProps({
-  size: { type: [Number, String] },
-  minSize: { type: [Number, String], default: 0 },
-  maxSize: { type: [Number, String], default: 100 }
+const props = withDefaults(defineProps<{
+  size?: number | string
+  minSize?: number | string
+  maxSize?: number | string
+}>(), {
+  minSize: 0,
+  maxSize: 100
 })
 
-const requestUpdate = inject('requestUpdate')
-const onPaneAdd = inject('onPaneAdd')
-const horizontal = inject('horizontal')
-const onPaneRemove = inject('onPaneRemove')
-const onPaneClick = inject('onPaneClick')
+const requestUpdate = inject(injectKey.requestUpdate)!
+const onPaneAdd = inject(injectKey.onPaneAdd)!
+const horizontal = inject(injectKey.horizontal)!
+const onPaneRemove = inject(injectKey.onPaneRemove)!
+const onPaneClick = inject(injectKey.onPaneClick)!
 
-const uid = getCurrentInstance()?.uid
-const indexedPanes = inject('indexedPanes')
+const uid = getCurrentInstance()!.uid
+const indexedPanes = inject(injectKey.indexedPanes)!
 const pane = computed(() => indexedPanes.value[uid])
 
-const paneEl = ref(null)
-const sizeNumber = computed(() => {
-  const value = isNaN(props.size) || props.size === undefined ? 0 : parseFloat(props.size)
+const stringToNumber = (value: string | number) => {
+  return typeof value === 'string' ? parseFloat(value) : value
+}
 
+const paneEl = useTemplateRef("paneEl")
+const sizeNumber = computed(() => {
+  let value = props.size === undefined ? 0 : stringToNumber(props.size)
+  value = isNaN(value) ? 0 : value
   return Math.max(Math.min(value, maxSizeNumber.value), minSizeNumber.value)
 })
 const minSizeNumber = computed(() => {
-  const value = parseFloat(props.minSize)
+  const value = stringToNumber(props.minSize)
   return isNaN(value) ? 0 : value
 })
 const maxSizeNumber = computed(() => {
-  const value = parseFloat(props.maxSize)
+  const value = stringToNumber(props.maxSize)
   return isNaN(value) ? 100 : value
 })
 const styles = computed(() => `${horizontal.value ? 'height' : 'width'}: ${pane.value?.size}%`)
 
-watch(() => sizeNumber.value, size => requestUpdate({ uid, size }))
-watch(() => minSizeNumber.value, min => requestUpdate({ uid, min }))
-watch(() => maxSizeNumber.value, max => requestUpdate({ uid, max }))
+watch(() => sizeNumber.value, size => requestUpdate({uid, size}))
+watch(() => minSizeNumber.value, min => requestUpdate({uid, min}))
+watch(() => maxSizeNumber.value, max => requestUpdate({uid, max}))
 
 onMounted(() => {
   onPaneAdd({
@@ -54,10 +62,12 @@ onMounted(() => {
     min: minSizeNumber.value,
     max: maxSizeNumber.value,
     // The given size (useful to know the user intention).
-    givenSize: props.size === undefined ? null : sizeNumber.value,
+    givenSize: props.size === undefined ? undefined : sizeNumber.value,
     size: sizeNumber.value // The computed current size at any time.
   })
 })
 
-onBeforeUnmount(() => onPaneRemove(uid))
+onBeforeUnmount(() => {
+  onPaneRemove(uid)
+})
 </script>
